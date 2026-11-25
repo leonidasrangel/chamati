@@ -6,31 +6,33 @@ checklists reutilizáveis e base de conhecimento técnica.
 **Stack:** Next.js 16 (App Router, Server Actions) · React 19 · Tailwind CSS 4 · Radix UI (estilo shadcn/ui) ·
 PostgreSQL · Prisma ORM 7 · sessão em cookie assinado (jose) · senhas com bcrypt.
 
-## Publicar na Vercel (com banco Neon)
+## Publicar na Render (com banco Neon)
 
-O projeto já vem configurado (`vercel.json`): região São Paulo (`gru1`) e build que aplica as migrações,
-cria o administrador inicial e compila o app (`npm run vercel-build`).
+O projeto já vem com o blueprint [`render.yaml`](render.yaml): serviço web Node na região Virginia,
+build que aplica as migrações, cria o administrador inicial e compila o app (`npm run build:prod`), e
+`AUTH_SECRET` gerado automaticamente. As duas contas abaixo usam login com GitHub.
 
-1. **Importar o projeto** — em [vercel.com/new](https://vercel.com/new), importe o repositório do GitHub.
-   Não precisa mudar nada nas configurações de build. O primeiro deploy pode falhar por falta de banco; tudo bem.
-2. **Criar o banco** — no projeto da Vercel: **Storage → Create Database → Neon (Postgres)**.
-   Escolha a região **São Paulo (aws-sa-east-1)** e conecte ao projeto em todos os ambientes.
-   A integração cria sozinha `DATABASE_URL` (com pooler) e `DATABASE_URL_UNPOOLED` (direta, usada nas migrações).
-3. **Variáveis de ambiente** — em **Settings → Environment Variables**, cadastre:
+1. **Banco na Neon** — em [neon.tech](https://neon.tech), entre com o GitHub e crie um projeto na região
+   **AWS US East 1 (N. Virginia)** (a mesma do serviço na Render). Em **Connect**, copie duas strings de conexão:
+   - com **Connection pooling ligado** (o host tem `-pooler`) → será a `DATABASE_URL`;
+   - com **Connection pooling desligado** → será a `DATABASE_URL_UNPOOLED` (usada nas migrações).
+2. **Serviço na Render** — em [dashboard.render.com](https://dashboard.render.com), entre com o GitHub,
+   clique em **New → Blueprint** e escolha o repositório `chamati`. A Render lê o `render.yaml` e pede:
 
    | Variável | Valor |
    |---|---|
-   | `AUTH_SECRET` | segredo aleatório (32+ caracteres) — gere com o comando abaixo |
+   | `DATABASE_URL` | string da Neon **com** pooling |
+   | `DATABASE_URL_UNPOOLED` | string da Neon **sem** pooling |
    | `ADMIN_EMAIL` | e-mail de login do administrador |
    | `ADMIN_NAME` | nome do administrador |
    | `ADMIN_PASSWORD` | senha inicial do administrador (mínimo 8 caracteres) |
+3. **Deploy** — clique em **Apply**. O primeiro build cria as tabelas e o administrador; o endereço fica
+   como `https://chamati-xxxx.onrender.com`.
+4. Entre com o e-mail e a senha do administrador. Depois disso, `ADMIN_PASSWORD` pode ser apagada em
+   **Environment** (o administrador só é criado quando o banco ainda não tem nenhum).
 
-   ```powershell
-   node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
-   ```
-4. **Deploy** — em **Deployments**, use **Redeploy** no último deploy. O build cria as tabelas e o administrador.
-5. Entre com o e-mail e a senha do administrador. Depois do primeiro login, `ADMIN_PASSWORD` pode ser removida da Vercel
-   (o administrador só é criado quando o banco ainda não tem nenhum).
+No plano gratuito da Render o serviço "dorme" após 15 min sem acessos e leva cerca de 50 s para acordar no
+primeiro acesso; o plano pago (Starter) remove essa espera. Cada `git push` na `main` gera um novo deploy.
 
 Contas dos colegas: o cadastro público está desligado. O administrador cria cada pessoa em **Usuários**, escolhe o
 perfil (Técnico de TI ou Solicitante) e informa a senha inicial; cada um troca a própria senha em
@@ -61,7 +63,7 @@ Pré-requisitos: Node.js 20+ e um PostgreSQL acessível.
 | `npm run db:seed` | Cria o administrador a partir de `ADMIN_*`, se ainda não houver nenhum |
 | `npm run db:reset` | **Apaga o banco**, reaplica as migrações e cria o administrador |
 | `npm run db:studio` | Abre o Prisma Studio para navegar nas tabelas |
-| `npm run vercel-build` | O que a Vercel executa: migrações + administrador + build |
+| `npm run build:prod` | Build de produção: migrações + administrador + build (usado pela Render) |
 
 ## Como funciona
 
@@ -145,5 +147,5 @@ src/
 prisma/
   schema.prisma  migrations/  seed.ts
 prisma.config.ts      conexão das migrações (usa DATABASE_URL_UNPOOLED quando existe)
-vercel.json           região gru1 + comando de build
+render.yaml           blueprint da Render (serviço, build e variáveis)
 ```

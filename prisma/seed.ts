@@ -1,6 +1,6 @@
 /**
  * Cria a conta de administrador inicial a partir de variáveis de ambiente.
- *   npm run db:seed   (também roda automaticamente no build da Vercel)
+ *   npm run db:seed   (também roda no build de produção: npm run build:prod)
  *
  *   ADMIN_EMAIL     e-mail de login do administrador
  *   ADMIN_NAME      nome exibido (padrão: "Administrador")

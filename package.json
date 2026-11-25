@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "ChamaTI — Gestão de Demandas de TI e Procedimentos Operacionais",
+  "engines": {
+    "node": ">=20.9"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -14,7 +17,7 @@
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset",
     "db:studio": "prisma studio",
-    "vercel-build": "prisma migrate deploy && prisma db seed && next build"
+    "build:prod": "prisma migrate deploy && prisma db seed && next build"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",

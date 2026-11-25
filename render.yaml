@@ -1,0 +1,33 @@
+# Blueprint da Render: New → Blueprint → escolha este repositório.
+# A Render cria o serviço web e pede os valores marcados com "sync: false".
+# Banco: PostgreSQL na Neon (neon.tech), região AWS US East 1 (N. Virginia),
+# a mesma região do serviço abaixo para as consultas ficarem rápidas.
+services:
+  - type: web
+    name: chamati
+    runtime: node
+    region: virginia
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build:prod
+    startCommand: npm start
+    healthCheckPath: /login
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Neon → Connect → "Connection pooling" LIGADO (host com "-pooler")
+      - key: DATABASE_URL
+        sync: false
+      # Neon → Connect → "Connection pooling" DESLIGADO (conexão direta, usada nas migrações)
+      - key: DATABASE_URL_UNPOOLED
+        sync: false
+      # Segredo da sessão: gerado automaticamente pela Render
+      - key: AUTH_SECRET
+        generateValue: true
+      # Administrador criado no primeiro deploy (se o banco não tiver nenhum)
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_NAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
