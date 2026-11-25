@@ -36,7 +36,7 @@ Contas criadas pelo seed (senha `123456`; os atalhos aparecem no login só em de
 |---|---|
 | Administrador | admin@chamati.local |
 | Técnico de TI | carlos.tecnico@chamati.local |
-| Solicitante (RH) | ana.rh@chamati.local |
+| Solicitante (RH) | mario.rh@chamati.local |
 
 > Troque essas senhas (ou desative as contas) antes de usar com dados reais.
 
