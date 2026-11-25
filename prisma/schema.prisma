@@ -1,0 +1,247 @@
+// ChamaTI — modelo de dados (Prisma ORM 7 + PostgreSQL)
+// Fonte da verdade do banco. As migrações ficam em prisma/migrations.
+//   npm run db:migrate   → aplica migrações (cria o banco se não existir)
+//   npm run db:seed      → carrega os dados de demonstração
+// A URL de conexão vem de DATABASE_URL (ver prisma.config.ts e .env).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  TECNICO
+  SOLICITANTE
+}
+
+enum TicketStatus {
+  A_FAZER
+  EM_ANDAMENTO
+  AGUARDANDO
+  CONCLUIDO
+}
+
+enum TicketPriority {
+  BAIXA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+enum TicketCategory {
+  REDE
+  HARDWARE
+  IMPRESSORA
+  SOFTWARE
+  FORMATACAO
+}
+
+enum CommentKind {
+  COMMENT
+  STATUS_CHANGE
+  ASSIGNMENT
+  CHECKLIST
+  SYSTEM
+}
+
+model Department {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(120)
+  acronym     String   @unique @db.VarChar(12)
+  managerName String?  @map("manager_name") @db.VarChar(120)
+  extension   String?  @db.VarChar(20)
+  location    String?  @db.VarChar(160)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  users   User[]
+  tickets Ticket[]
+
+  @@map("departments")
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  name         String    @db.VarChar(120)
+  email        String    @unique @db.VarChar(160) // sempre gravado em minúsculas
+  passwordHash String    @map("password_hash")
+  role         UserRole  @default(SOLICITANTE)
+  departmentId String?   @map("department_id") @db.Uuid
+  phone        String?   @db.VarChar(30)
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  department         Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  requestedTickets   Ticket[]             @relation("TicketRequester")
+  assignedTickets    Ticket[]             @relation("TicketAssignee")
+  comments           TicketComment[]
+  checklists         Checklist[]
+  attachedChecklists TicketChecklist[]
+  checkedItems       TicketChecklistItem[]
+  procedures         Procedure[]          @relation("ProcedureAuthor")
+  editedProcedures   Procedure[]          @relation("ProcedureEditor")
+  notifications      Notification[]
+
+  @@index([departmentId])
+  @@index([role])
+  @@map("users")
+}
+
+model Ticket {
+  id            String         @id @default(uuid()) @db.Uuid
+  number        Int            @unique @default(autoincrement())
+  title         String         @db.VarChar(200)
+  description   String         @default("")
+  departmentId  String         @map("department_id") @db.Uuid
+  requesterId   String         @map("requester_id") @db.Uuid
+  assigneeId    String?        @map("assignee_id") @db.Uuid
+  priority      TicketPriority @default(MEDIA)
+  category      TicketCategory
+  status        TicketStatus   @default(A_FAZER)
+  waitingReason String?        @map("waiting_reason") @db.VarChar(200)
+  assetTag      String?        @map("asset_tag") @db.VarChar(60)
+  dueDate       DateTime?      @map("due_date") @db.Date
+  closedAt      DateTime?      @map("closed_at") @db.Timestamptz
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  department Department        @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  requester  User              @relation("TicketRequester", fields: [requesterId], references: [id], onDelete: Restrict)
+  assignee   User?             @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  comments   TicketComment[]
+  checklists TicketChecklist[]
+  notifications Notification[]
+
+  @@index([status])
+  @@index([departmentId])
+  @@index([assigneeId])
+  @@index([requesterId])
+  @@index([createdAt(sort: Desc)])
+  @@index([departmentId, status, priority, createdAt(sort: Desc)])
+  @@map("tickets")
+}
+
+model TicketComment {
+  id         String      @id @default(uuid()) @db.Uuid
+  ticketId   String      @map("ticket_id") @db.Uuid
+  authorId   String?     @map("author_id") @db.Uuid
+  kind       CommentKind @default(COMMENT)
+  body       String
+  isInternal Boolean     @default(false) @map("is_internal")
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User?  @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_comments")
+}
+
+/// Modelo de checklist reutilizável (ex.: "Checklist Pós-Formatação Windows")
+model Checklist {
+  id          String          @id @default(uuid()) @db.Uuid
+  title       String          @db.VarChar(160)
+  description String          @default("")
+  category    TicketCategory?
+  createdById String?         @map("created_by") @db.Uuid
+  archived    Boolean         @default(false)
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  createdBy User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  items     ChecklistItem[]
+  instances TicketChecklist[]
+
+  @@map("checklists")
+}
+
+model ChecklistItem {
+  id          String  @id @default(uuid()) @db.Uuid
+  checklistId String  @map("checklist_id") @db.Uuid
+  position    Int
+  label       String  @db.VarChar(300)
+  hint        String?
+
+  checklist Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@unique([checklistId, position])
+  @@map("checklist_items")
+}
+
+/// Checklist ativo vinculado a uma demanda (cópia dos itens do modelo)
+model TicketChecklist {
+  id           String    @id @default(uuid()) @db.Uuid
+  ticketId     String    @map("ticket_id") @db.Uuid
+  checklistId  String?   @map("checklist_id") @db.Uuid
+  title        String    @db.VarChar(160)
+  attachedById String?   @map("attached_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz
+
+  ticket     Ticket                @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  template   Checklist?            @relation(fields: [checklistId], references: [id], onDelete: SetNull)
+  attachedBy User?                 @relation(fields: [attachedById], references: [id], onDelete: SetNull)
+  items      TicketChecklistItem[]
+
+  @@index([ticketId])
+  @@map("ticket_checklists")
+}
+
+model TicketChecklistItem {
+  id                String    @id @default(uuid()) @db.Uuid
+  ticketChecklistId String    @map("ticket_checklist_id") @db.Uuid
+  position          Int
+  label             String    @db.VarChar(300)
+  hint              String?
+  done              Boolean   @default(false)
+  doneById          String?   @map("done_by") @db.Uuid
+  doneAt            DateTime? @map("done_at") @db.Timestamptz
+  note              String?
+
+  ticketChecklist TicketChecklist @relation(fields: [ticketChecklistId], references: [id], onDelete: Cascade)
+  doneBy          User?           @relation(fields: [doneById], references: [id], onDelete: SetNull)
+
+  @@index([ticketChecklistId, position])
+  @@map("ticket_checklist_items")
+}
+
+/// Base de conhecimento (wiki / bloco de notas em Markdown)
+model Procedure {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String   @db.VarChar(200)
+  content     String   @default("")
+  tags        String[] @default([])
+  pinned      Boolean  @default(false)
+  authorId    String?  @map("author_id") @db.Uuid
+  updatedById String?  @map("updated_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  author    User? @relation("ProcedureAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  updatedBy User? @relation("ProcedureEditor", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("procedures")
+}
+
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  ticketId  String?   @map("ticket_id") @db.Uuid
+  message   String    @db.VarChar(300)
+  readAt    DateTime? @map("read_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ticket Ticket? @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt(sort: Desc)])
+  @@map("notifications")
+}

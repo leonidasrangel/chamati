@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+
+  /* Grafite — superfície da sidebar */
+  --color-graphite-950: #111214;
+  --color-graphite-900: #18191c;
+  --color-graphite-800: #232428;
+  --color-graphite-700: #2f3035;
+
+  /* Cores de gráfico (dataviz) */
+  --color-viz-1: #2a78d6;
+  --color-viz-track: #e9eef6;
+
+  --animate-in: fade-in 120ms ease-out;
+  --animate-slide-in: slide-in 160ms ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(2px) scale(0.99); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes slide-in {
+  from { transform: translateX(-100%); }
+  to   { transform: none; }
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-zinc-50 text-zinc-900;
+  }
+  ::selection {
+    @apply bg-blue-100;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-blue-500;
+  }
+}
+
+/* Barras de rolagem discretas */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #d4d4d8 transparent;
+}
+
+/* Conteúdo renderizado da base de conhecimento */
+.prose-kb h1 { @apply mb-3 mt-1 text-xl font-semibold tracking-tight text-zinc-900; }
+.prose-kb h2 { @apply mb-2 mt-6 text-base font-semibold text-zinc-900; }
+.prose-kb h3 { @apply mb-2 mt-4 text-sm font-semibold text-zinc-900; }
+.prose-kb p  { @apply my-2 text-sm leading-6 text-zinc-700; }
+.prose-kb ul { @apply my-2 list-disc space-y-1 pl-5 text-sm text-zinc-700; }
+.prose-kb ol { @apply my-2 list-decimal space-y-1 pl-5 text-sm text-zinc-700; }
+.prose-kb li { @apply leading-6; }
+.prose-kb code { @apply rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[0.8em] text-zinc-800; }
+.prose-kb pre { @apply my-3 overflow-x-auto rounded-lg bg-graphite-900 p-3 font-mono text-xs leading-5 text-zinc-100; }
+.prose-kb pre code { @apply bg-transparent p-0 text-zinc-100; }
+.prose-kb blockquote { @apply my-3 border-l-2 border-blue-300 bg-blue-50/50 py-1.5 pl-3 text-sm text-zinc-700; }
+.prose-kb hr { @apply my-4 border-zinc-200; }
+.prose-kb strong { @apply font-semibold text-zinc-900; }
+.prose-kb a { @apply text-blue-700 underline underline-offset-2; }
