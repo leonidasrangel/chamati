@@ -29,6 +29,7 @@ import { UserError, bool, email as emailField, fail, id, oneOf, optDate, optId, 
 const STAFF: UserRole[] = ["ADMIN", "TECNICO"];
 const ROLES: UserRole[] = ["ADMIN", "TECNICO", "SOLICITANTE"];
 const BCRYPT_ROUNDS = 10;
+const MIN_PASSWORD = 8;
 
 type Tx = Prisma.TransactionClient;
 
@@ -112,25 +113,17 @@ export async function loginAction(emailInput: string, password: string): Promise
   }
 }
 
-export async function registerAction(input: { name: string; email: string; password: string; departmentId: string }): Promise<ActionResult> {
-  try {
-    const name = str(input?.name, "Nome", { max: 120 });
-    const email = emailField(input?.email);
-    const password = str(input?.password, "Senha", { min: 6, max: 128 });
-    const departmentId = id(input?.departmentId, "Departamento");
-    const dep = await prisma.department.findUnique({ where: { id: departmentId } });
-    if (!dep || !dep.active) fail("Departamento inválido.");
-    if (await prisma.user.findUnique({ where: { email } })) fail("Já existe um usuário com este e-mail.");
-
-    const user = await prisma.user.create({
-      data: { name, email, passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS), role: "SOLICITANTE", departmentId },
-    });
-    await createSession(user.id);
-    const me = toUser(user);
-    return { ok: true, me, db: await loadSnapshot(me) };
-  } catch (e) {
-    return errorResult(e);
-  }
+/** Qualquer usuário logado troca a própria senha (precisa informar a atual). */
+export async function changePasswordAction(currentPassword: string, newPassword: string) {
+  return run(async (me) => {
+    const next = str(newPassword, "Nova senha", { min: MIN_PASSWORD, max: 128 });
+    const row = await prisma.user.findUnique({ where: { id: me.id } });
+    if (!row) fail("Usuário não encontrado.");
+    const valid = await bcrypt.compare(typeof currentPassword === "string" ? currentPassword : "", row.passwordHash);
+    if (!valid) fail("Senha atual incorreta.");
+    if (await bcrypt.compare(next, row.passwordHash)) fail("A nova senha deve ser diferente da atual.");
+    await prisma.user.update({ where: { id: me.id }, data: { passwordHash: await bcrypt.hash(next, BCRYPT_ROUNDS) } });
+  });
 }
 
 export async function logoutAction(): Promise<ActionResult> {
@@ -199,7 +192,7 @@ export async function saveUserAction(input: UserInput) {
     if (isSelf && !active) fail("Você não pode desativar o próprio usuário.");
     if (role === "SOLICITANTE" && !departmentId) fail("Solicitantes precisam de um departamento.");
     if (departmentId && !(await prisma.department.findUnique({ where: { id: departmentId } }))) fail("Departamento inválido.");
-    if (password && password.length < 6) fail("A senha deve ter pelo menos 6 caracteres.");
+    if (password && password.length < MIN_PASSWORD) fail(`A senha deve ter pelo menos ${MIN_PASSWORD} caracteres.`);
     if (!editingId && !password) fail("Defina uma senha inicial.");
 
     const data = {

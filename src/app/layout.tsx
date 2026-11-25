@@ -22,7 +22,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="pt-BR">
-      <body className="min-h-dvh font-sans">
+      {/* suppressHydrationWarning: extensões do navegador costumam injetar atributos no <body> */}
+      <body className="min-h-dvh font-sans" suppressHydrationWarning>
         <StoreProvider initialDb={db} initialUser={user}>
           {children}
         </StoreProvider>

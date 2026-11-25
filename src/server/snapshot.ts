@@ -13,11 +13,10 @@ import {
   toUser,
 } from "./mappers";
 
-/** Estado vazio para visitantes: apenas departamentos ativos (usados no cadastro). */
+/** Estado vazio para visitantes (sem sessão nada do banco é enviado). */
 export async function loadPublicSnapshot(): Promise<DbState> {
-  const departments = await prisma.department.findMany({ where: { active: true }, orderBy: { name: "asc" } });
   return {
-    departments: departments.map(toDepartment),
+    departments: [],
     users: [],
     tickets: [],
     comments: [],

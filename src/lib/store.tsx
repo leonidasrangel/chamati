@@ -39,7 +39,7 @@ interface StoreValue {
   // auth
   login: (email: string, password: string) => Promise<Result>;
   logout: () => Promise<void>;
-  register: (data: { name: string; email: string; password: string; departmentId: string }) => Promise<Result>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<Result>;
   // departments
   saveDepartment: (dep: DepartmentInput) => Promise<Result>;
   deleteDepartment: (id: string) => Promise<Result>;
@@ -165,10 +165,8 @@ export function StoreProvider({
         setSignedOut(false);
         return simple(await call(() => api.loginAction(email, password), { silent: true }));
       },
-      register: async (data) => {
-        setSignedOut(false);
-        return simple(await call(() => api.registerAction(data), { silent: true }));
-      },
+      changePassword: async (currentPassword, newPassword) =>
+        simple(await call(() => api.changePasswordAction(currentPassword, newPassword), { silent: true })),
       logout: async () => {
         const res = await api.logoutAction().catch(() => null);
         setSignedOut(true);

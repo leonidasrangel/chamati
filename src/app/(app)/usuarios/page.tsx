@@ -224,8 +224,8 @@ function UserDialog({ open, onOpenChange, user }: { open: boolean; onOpenChange:
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user && form.password.length < 6) return setError("Defina uma senha inicial com pelo menos 6 caracteres.");
-    if (user && form.password && form.password.length < 6) return setError("A nova senha deve ter pelo menos 6 caracteres.");
+    if (!user && form.password.length < 8) return setError("Defina uma senha inicial com pelo menos 8 caracteres.");
+    if (user && form.password && form.password.length < 8) return setError("A nova senha deve ter pelo menos 8 caracteres.");
     setSaving(true);
     const res = await saveUser({
       id: user?.id,

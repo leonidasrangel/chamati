@@ -6,49 +6,62 @@ checklists reutilizáveis e base de conhecimento técnica.
 **Stack:** Next.js 16 (App Router, Server Actions) · React 19 · Tailwind CSS 4 · Radix UI (estilo shadcn/ui) ·
 PostgreSQL · Prisma ORM 7 · sessão em cookie assinado (jose) · senhas com bcrypt.
 
-## Primeira execução
+## Publicar na Vercel (com banco Neon)
 
-Pré-requisitos: Node.js 20+ e um PostgreSQL acessível (local, Docker ou Supabase).
+O projeto já vem configurado (`vercel.json`): região São Paulo (`gru1`) e build que aplica as migrações,
+cria o administrador inicial e compila o app (`npm run vercel-build`).
 
-1. Instale as dependências (também gera o cliente Prisma):
+1. **Importar o projeto** — em [vercel.com/new](https://vercel.com/new), importe o repositório do GitHub.
+   Não precisa mudar nada nas configurações de build. O primeiro deploy pode falhar por falta de banco; tudo bem.
+2. **Criar o banco** — no projeto da Vercel: **Storage → Create Database → Neon (Postgres)**.
+   Escolha a região **São Paulo (aws-sa-east-1)** e conecte ao projeto em todos os ambientes.
+   A integração cria sozinha `DATABASE_URL` (com pooler) e `DATABASE_URL_UNPOOLED` (direta, usada nas migrações).
+3. **Variáveis de ambiente** — em **Settings → Environment Variables**, cadastre:
+
+   | Variável | Valor |
+   |---|---|
+   | `AUTH_SECRET` | segredo aleatório (32+ caracteres) — gere com o comando abaixo |
+   | `ADMIN_EMAIL` | e-mail de login do administrador |
+   | `ADMIN_NAME` | nome do administrador |
+   | `ADMIN_PASSWORD` | senha inicial do administrador (mínimo 8 caracteres) |
+
    ```powershell
-   npm install
+   node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
    ```
-2. Configure o `.env` (modelo em `.env.example`):
-   - `DATABASE_URL` — ex.: `postgresql://postgres:SENHA@localhost:5432/chamati?schema=public`.
-     Caracteres especiais na senha precisam ser codificados (`@` → `%40`, `#` → `%23`).
-   - `AUTH_SECRET` — segredo aleatório com 32+ caracteres para assinar a sessão.
-3. Crie as tabelas (o banco `chamati` é criado se não existir) e carregue os dados de demonstração:
+4. **Deploy** — em **Deployments**, use **Redeploy** no último deploy. O build cria as tabelas e o administrador.
+5. Entre com o e-mail e a senha do administrador. Depois do primeiro login, `ADMIN_PASSWORD` pode ser removida da Vercel
+   (o administrador só é criado quando o banco ainda não tem nenhum).
+
+Contas dos colegas: o cadastro público está desligado. O administrador cria cada pessoa em **Usuários**, escolhe o
+perfil (Técnico de TI ou Solicitante) e informa a senha inicial; cada um troca a própria senha em
+**menu do perfil → Alterar senha**.
+
+## Rodar localmente
+
+Pré-requisitos: Node.js 20+ e um PostgreSQL acessível.
+
+1. `npm install` (também gera o cliente Prisma).
+2. Copie `.env.example` para `.env` e preencha `DATABASE_URL`, `AUTH_SECRET` e os dados do administrador.
+   Caracteres especiais na senha do banco precisam ser codificados (`@` → `%40`, `#` → `%23`).
+3. Crie as tabelas (o banco é criado se não existir) e o administrador:
    ```powershell
    npm run db:migrate
    ```
    ```powershell
    npm run db:seed
    ```
-4. Rode o sistema e abra http://localhost:3000:
-   ```powershell
-   npm run dev
-   ```
-
-Contas criadas pelo seed (senha `123456`; os atalhos aparecem no login só em desenvolvimento):
-
-| Perfil | E-mail |
-|---|---|
-| Administrador | admin@chamati.local |
-| Técnico de TI | carlos.tecnico@chamati.local |
-| Solicitante (RH) | mario.rh@chamati.local |
-
-> Troque essas senhas (ou desative as contas) antes de usar com dados reais.
+4. `npm run dev` e abra http://localhost:3000.
 
 ### Scripts do banco
 
 | Script | O que faz |
 |---|---|
 | `npm run db:migrate` | Cria/aplica migrações em desenvolvimento (`prisma migrate dev`) |
-| `npm run db:deploy` | Aplica migrações pendentes em produção (`prisma migrate deploy`) |
-| `npm run db:seed` | Carrega os dados de demonstração (só se não houver usuários) |
-| `npm run db:reset` | **Apaga o banco**, reaplica as migrações e roda o seed |
+| `npm run db:deploy` | Aplica migrações pendentes (`prisma migrate deploy`) |
+| `npm run db:seed` | Cria o administrador a partir de `ADMIN_*`, se ainda não houver nenhum |
+| `npm run db:reset` | **Apaga o banco**, reaplica as migrações e cria o administrador |
 | `npm run db:studio` | Abre o Prisma Studio para navegar nas tabelas |
+| `npm run vercel-build` | O que a Vercel executa: migrações + administrador + build |
 
 ## Como funciona
 
@@ -60,16 +73,17 @@ src/lib/store.tsx  ── Server Action ──▶ src/server/actions.ts  ── 
 ```
 
 - **Leitura:** o layout raiz (`src/app/layout.tsx`) lê a sessão e carrega no servidor o recorte do banco
-  que o usuário pode ver (`src/server/snapshot.ts`). O Solicitante recebe só as próprias demandas, sem notas
-  internas, sem base de conhecimento e sem e-mail/telefone dos outros usuários.
+  que o usuário pode ver (`src/server/snapshot.ts`). Visitantes sem sessão não recebem nenhum dado. O Solicitante
+  recebe só as próprias demandas, sem notas internas, sem base de conhecimento e sem e-mail/telefone de outros usuários.
 - **Escrita:** toda alteração passa por uma Server Action que confere a sessão e o perfil, valida a entrada
   (`src/server/validate.ts`), grava numa transação e devolve o recorte atualizado.
 - **Atualização:** mover cartão, marcar item de checklist e ler notificações aparecem na hora (otimista) e
   são confirmados pelo servidor; os dados são recarregados ao focar a janela e a cada 30 s.
 - **Sessão:** cookie `chamati_session` httpOnly, assinado (HS256), válido por 12 h. O usuário é relido do banco
-  a cada requisição, então desativar alguém corta o acesso na hora. `src/proxy.ts` redireciona para o login
-  quem acessa áreas internas sem sessão.
-- **Login:** senhas com bcrypt; bloqueio temporário após 5 tentativas erradas por e-mail (em memória).
+  a cada requisição, então desativar ou excluir alguém corta o acesso na hora. `src/proxy.ts` redireciona para o
+  login quem acessa áreas internas sem sessão.
+- **Senhas:** bcrypt, mínimo de 8 caracteres; bloqueio temporário após 5 tentativas erradas por e-mail
+  (em memória — por instância do servidor).
 
 ### Permissões
 
@@ -82,12 +96,13 @@ src/lib/store.tsx  ── Server Action ──▶ src/server/actions.ts  ── 
 | Checklists e base de conhecimento | ✓ | ✓ | vê o checklist da própria demanda |
 | Departamentos | ✓ | ✓ | — |
 | Usuários (criar/editar/excluir) | ✓ | só consulta | — |
+| Trocar a própria senha | ✓ | ✓ | ✓ |
 
 ## Módulos
 
 | Rota | Perfil | O que faz |
 |---|---|---|
-| `/login`, `/cadastro` | todos | Autenticação; o cadastro cria contas de **Solicitante** |
+| `/login` | todos | Autenticação (contas criadas pelo administrador) |
 | `/dashboard` | TI | Indicadores, distribuição por status, demandas por departamento/categoria, fila pessoal |
 | `/chamados` | TI | **Kanban** (arrastar e soltar) ↔ **Tabela** (ordenação, paginação) com filtros por departamento, status, prioridade, categoria, responsável e período |
 | `/chamados/[id]` | TI e solicitante dono | Detalhes, alteração rápida de status/prioridade/responsável, **checklist vinculado**, linha do tempo com comentários e notas internas |
@@ -99,8 +114,8 @@ src/lib/store.tsx  ── Server Action ──▶ src/server/actions.ts  ── 
 ## Banco de dados
 
 - [`prisma/schema.prisma`](prisma/schema.prisma) — **fonte da verdade**; migrações em `prisma/migrations/`.
-- [`db/schema.sql`](db/schema.sql) — DDL equivalente em SQL puro, para referência ou uso direto no Supabase.
-- [`prisma/seed.ts`](prisma/seed.ts) + [`prisma/seed-data.ts`](prisma/seed-data.ts) — dados de demonstração.
+- [`db/schema.sql`](db/schema.sql) — DDL equivalente em SQL puro, para referência.
+- [`prisma/seed.ts`](prisma/seed.ts) — cria o administrador inicial a partir das variáveis `ADMIN_*`.
 
 Tabelas: `departments`, `users`, `tickets`, `ticket_comments`, `checklists` (modelos), `checklist_items`,
 `ticket_checklists` (checklist ativo na demanda), `ticket_checklist_items`, `procedures`, `notifications`.
@@ -108,20 +123,13 @@ Tabelas: `departments`, `users`, `tickets`, `ticket_comments`, `checklists` (mod
 Ao vincular um checklist a uma demanda, os itens do modelo são **copiados**; editar o modelo depois não
 altera checklists em execução.
 
-## Produção
-
-1. `DATABASE_URL` do servidor definitivo e um `AUTH_SECRET` novo e exclusivo.
-2. `npm run db:deploy` para aplicar as migrações.
-3. `npm run build` e `npm start` (atrás de HTTPS — o cookie de sessão é `secure` em produção).
-4. O limite de tentativas de login fica em memória: com mais de uma instância do servidor, troque por Redis ou tabela.
-
 ## Estrutura
 
 ```
 src/
   app/
     (app)/            área autenticada (sidebar + header)
-    login/ cadastro/
+    login/
     layout.tsx        carrega sessão + dados iniciais no servidor
   components/         ui/, layout/, tickets/, procedures/, dashboard/
   lib/
@@ -135,6 +143,7 @@ src/
   proxy.ts            redireciona visitantes sem sessão
   generated/prisma/   cliente Prisma (gerado, fora do git)
 prisma/
-  schema.prisma  migrations/  seed.ts  seed-data.ts
-prisma.config.ts
+  schema.prisma  migrations/  seed.ts
+prisma.config.ts      conexão das migrações (usa DATABASE_URL_UNPOOLED quando existe)
+vercel.json           região gru1 + comando de build
 ```

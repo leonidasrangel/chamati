@@ -1,9 +1,12 @@
 "use client";
 
-import { Bell, ChevronDown, LogOut, Menu, UserRound } from "lucide-react";
+import { Bell, ChevronDown, KeyRound, LogOut, Menu, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Avatar, RoleBadge } from "@/components/ui/badges";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Field, Input } from "@/components/ui/form";
 import {
   DropdownContent,
   DropdownItem,
@@ -85,9 +88,11 @@ function Notifications() {
 function ProfileMenu() {
   const { currentUser, logout } = useStore();
   const router = useRouter();
+  const [passwordOpen, setPasswordOpen] = useState(false);
   if (!currentUser) return null;
 
   return (
+    <>
     <DropdownMenu>
       <DropdownTrigger asChild>
         <button className="flex items-center gap-2 rounded-md py-1 pl-1 pr-1.5 hover:bg-zinc-100" aria-label="Menu do perfil">
@@ -110,7 +115,10 @@ function ProfileMenu() {
             <UserRound /> Meu cadastro
           </DropdownItem>
         )}
-        {currentUser.role === "ADMIN" && <DropdownSeparator />}
+        <DropdownItem onSelect={() => setPasswordOpen(true)}>
+          <KeyRound /> Alterar senha
+        </DropdownItem>
+        <DropdownSeparator />
         <DropdownItem
           danger
           onSelect={async () => {
@@ -122,5 +130,78 @@ function ProfileMenu() {
         </DropdownItem>
       </DropdownContent>
     </DropdownMenu>
+    <ChangePasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} />
+    </>
+  );
+}
+
+function ChangePasswordDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const { changePassword } = useStore();
+  const [form, setForm] = useState({ current: "", next: "", confirm: "" });
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setForm({ current: "", next: "", confirm: "" });
+    setError("");
+    setDone(false);
+  }, [open]);
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (form.next.length < 8) return setError("A nova senha deve ter pelo menos 8 caracteres.");
+    if (form.next !== form.confirm) return setError("A confirmação não confere com a nova senha.");
+    setSaving(true);
+    setError("");
+    const res = await changePassword(form.current, form.next);
+    setSaving(false);
+    if (!res.ok) return setError(res.error);
+    setDone(true);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        title="Alterar senha"
+        description="Use pelo menos 8 caracteres."
+        footer={
+          done ? (
+            <Button onClick={() => onOpenChange(false)}>Fechar</Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" form="password-form" disabled={saving}>
+                {saving ? "Salvando…" : "Salvar nova senha"}
+              </Button>
+            </>
+          )
+        }
+      >
+        {done ? (
+          <p className="rounded-md bg-emerald-50 px-3 py-2 text-[13px] text-emerald-800 ring-1 ring-emerald-200" role="status">
+            Senha alterada. Use a nova senha no próximo login.
+          </p>
+        ) : (
+          <form id="password-form" onSubmit={submit} className="grid gap-4">
+            <Field label="Senha atual" htmlFor="pw-current">
+              <Input id="pw-current" type="password" autoComplete="current-password" required value={form.current} onChange={set("current")} />
+            </Field>
+            <Field label="Nova senha" htmlFor="pw-next">
+              <Input id="pw-next" type="password" autoComplete="new-password" required value={form.next} onChange={set("next")} />
+            </Field>
+            <Field label="Confirmar nova senha" htmlFor="pw-confirm">
+              <Input id="pw-confirm" type="password" autoComplete="new-password" required value={form.confirm} onChange={set("confirm")} />
+            </Field>
+            {error && <p className="rounded-md bg-red-50 px-3 py-2 text-[13px] text-red-700 ring-1 ring-red-200">{error}</p>}
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
